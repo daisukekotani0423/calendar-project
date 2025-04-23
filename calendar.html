@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>カレンダー</title>
+  <style>
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #aaa; padding: 5px; text-align: center; height: 80px; }
+    th { background-color: #ddd; }
+    .saturday { color: blue; background-color: #ddf; }
+    .sunday { color: red; background-color: #fdd; }
+    .holiday { background-color: #fdd; }
+    .input-box { width: 90%; font-size: 10px; }
+    .carry-over { color: gray; }
+  </style>
+</head>
+<body>
+  <h1 id="monthTitle"></h1>
+  <button onclick="changeMonth(-1)">前月</button>
+  <button onclick="changeMonth(1)">次月</button>
+  <table id="calendar"></table>
+
+  <script>
+    const today = new Date();
+    const baseYear = today.getFullYear();
+    let currentYear = baseYear;
+    let currentMonth = today.getMonth();
+
+    function renderCalendar(year, month) {
+      const calendar = document.getElementById("calendar");
+      const monthTitle = document.getElementById("monthTitle");
+      calendar.innerHTML = "";
+
+      const holidays = getHolidays(year, month);
+      const days = ["日", "月", "火", "水", "木", "金", "土"];
+      const firstDay = new Date(year, month, 1).getDay();
+      const lastDate = new Date(year, month + 1, 0).getDate();
+
+      // 前月のはみ出し日付をチェック
+      let prevMonth = (month - 1 + 12) % 12;
+      let prevYear = month === 0 ? year - 1 : year;
+      const prevLastDate = new Date(prevYear, prevMonth + 1, 0).getDate();
+      const prevFirstDay = new Date(prevYear, prevMonth, 1).getDay();
+      const prevTotalDays = prevFirstDay + prevLastDate;
+      const prevWeeks = Math.ceil(prevTotalDays / 7);
+
+      let carryDates = [];
+      if (prevWeeks > 5) {
+        const overflowStart = prevLastDate - (prevTotalDays % 7) + 1;
+        for (let d = overflowStart; d <= prevLastDate; d++) {
+          carryDates.push(d);
+        }
+      }
+
+      monthTitle.innerText = `${year}年 ${month + 1}月`;
+
+      const headerRow = document.createElement("tr");
+      for (let i = 0; i < 7; i++) {
+        const th = document.createElement("th");
+        th.innerText = days[i];
+        if (i === 0) th.classList.add("sunday");
+        if (i === 6) th.classList.add("saturday");
+        headerRow.appendChild(th);
+      }
+      calendar.appendChild(headerRow);
+
+      let date = 1;
+      let carryIndex = 0;
+      let finished = false;
+
+      for (let w = 0; w < 5; w++) { // 5週だけ表示
+        const row = document.createElement("tr");
+        for (let d = 0; d < 7; d++) {
+          const cell = document.createElement("td");
+
+          if (w === 0 && d < firstDay) {
+            if (carryIndex < carryDates.length) {
+              const prevDate = carryDates[carryIndex++];
+              const key = `${prevYear}-${prevMonth + 1}-${prevDate}`;
+              const plan = localStorage.getItem(key) || "";
+              cell.innerHTML = `<strong class="carry-over">${prevDate}</strong><br>
+                <input class="input-box" placeholder="予定"
+                       data-date="${key}"
+                       value="${plan}"
+                       oninput="savePlan(event)">`;
+            } else {
+              cell.innerText = "";
+            }
+          } else if (date <= lastDate) {
+            const key = `${year}-${month + 1}-${date}`;
+            const plan = localStorage.getItem(key) || "";
+            cell.innerHTML = `<strong>${date}</strong><br>
+              <input class="input-box" placeholder="予定"
+                     data-date="${key}"
+                     value="${plan}"
+                     oninput="savePlan(event)">`;
+
+            const dayOfWeek = new Date(year, month, date).getDay();
+            if (dayOfWeek === 0) cell.classList.add("sunday");
+            if (dayOfWeek === 6) cell.classList.add("saturday");
+            if (holidays.includes(date)) cell.classList.add("holiday");
+
+            date++;
+          } else {
+            cell.innerText = "";
+            finished = true;
+          }
+
+          row.appendChild(cell);
+        }
+        calendar.appendChild(row);
+
+        if (finished) break; // 日付が終わったら打ち切り
+      }
+    }
+
+    function changeMonth(offset) {
+      currentMonth += offset;
+      if (currentMonth < 0) {
+        currentMonth = 11;
+        currentYear--;
+      } else if (currentMonth > 11) {
+        currentMonth = 0;
+        currentYear++;
+      }
+
+      // 年の制限（前後3年）
+      if (currentYear < baseYear - 3) {
+        currentYear = baseYear - 3;
+        currentMonth = 0;
+      } else if (currentYear > baseYear + 3) {
+        currentYear = baseYear + 3;
+        currentMonth = 11;
+      }
+
+      renderCalendar(currentYear, currentMonth);
+    }
+
+    function savePlan(event) {
+      const input = event.target;
+      const dateKey = input.dataset.date;
+      localStorage.setItem(dateKey, input.value);
+    }
+
+    function getHolidays(year, month) {
+      // 2022年〜2028年の祝日リスト（月は0ベースなので+1して判定）
+      const holidayMap = {
+        "2022-1": [1, 10],
+        "2022-2": [11],
+        "2022-3": [21],
+        "2022-4": [29],
+        "2022-5": [3, 4, 5],
+        "2022-7": [18],
+        "2022-8": [11],
+        "2022-9": [19, 23],
+        "2022-10": [10],
+        "2022-11": [3, 23],
+        "2022-12": [23],
+
+        "2023-1": [1, 9],
+        "2023-2": [11],
+        "2023-3": [21],
+        "2023-4": [29],
+        "2023-5": [3, 4, 5],
+        "2023-7": [17],
+        "2023-8": [11],
+        "2023-9": [18, 23],
+        "2023-10": [9],
+        "2023-11": [3, 23],
+        "2023-12": [23],
+
+        "2024-1": [1, 8],
+        "2024-2": [11],
+        "2024-3": [20],
+        "2024-4": [29],
+        "2024-5": [3, 4, 5],
+        "2024-7": [15],
+        "2024-8": [11],
+        "2024-9": [16, 23],
+        "2024-10": [14],
+        "2024-11": [3, 23],
+        "2024-12": [23],
+
+        "2025-1": [1, 13],
+        "2025-2": [11],
+        "2025-3": [21],
+        "2025-4": [29],
+        "2025-5": [3, 4, 5, 6],  // 6日は振替休日
+        "2025-7": [21],
+        "2025-8": [11],
+        "2025-9": [15, 23],
+        "2025-10": [13],
+        "2025-11": [3, 23],
+        "2025-12": [23],
+
+        "2026-1": [1, 12],
+        "2026-2": [11],
+        "2026-3": [21],
+        "2026-4": [29],
+        "2026-5": [3, 4, 5, 6],  // 6日は振替休日
+        "2026-7": [20],
+        "2026-8": [11],
+        "2026-9": [21, 23],
+        "2026-10": [12],
+        "2026-11": [3, 23],
+        "2026-12": [23],
+
+        "2027-1": [1, 11],
+        "2027-2": [11],
+        "2027-3": [21],
+        "2027-4": [29],
+        "2027-5": [3, 4, 5, 6],
+        "2027-7": [19],
+        "2027-8": [11],
+        "2027-9": [20, 23],
+        "2027-10": [11],
+        "2027-11": [3, 23],
+        "2027-12": [23],
+
+        "2028-1": [1, 10],
+        "2028-2": [11],
+        "2028-3": [20],
+        "2028-4": [29],
+        "2028-5": [3, 4, 5, 6],
+        "2028-7": [17],
+        "2028-8": [11],
+        "2028-9": [18, 23],
+        "2028-10": [9],
+        "2028-11": [3, 23],
+        "2028-12": [23],
+      };
+
+      const key = `${year}-${month + 1}`;
+      return holidayMap[key] || [];
+    }
+
+    renderCalendar(currentYear, currentMonth);
+  </script>
+</body>
+</html>
